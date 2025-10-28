@@ -4,32 +4,79 @@ const Diagnosis = require("../models/Diagnosis");
 const axios = require("axios");
 
 // POST: Tạo chẩn đoán mới
+// POST: Tạo chẩn đoán mới
 router.post("/", async (req, res) => {
   try {
+    // data là dữ liệu gốc từ frontend (ví dụ: patientGender: "Nam")
     const data = req.body;
 
-    // Gửi dữ liệu sang Python API để lấy xác suất dự đoán
-    const pyRes = await axios.post("http://localhost:8050/predict", data);
-    const probability = pyRes.data.probability;
+    // ---- SỬA LỖI 422 ----
+    // 1. Tạo một "payload" SẠCH để gửi cho Python
+    const payloadForPython = {
+      age: data.patientAge,
+      gender: (data.patientGender === "Nam" ? 2 : 1),
 
-    // Xác định mức độ nguy cơ dựa trên xác suất
+      // ---- SỬA LỖI Ở ĐÂY ----
+      // Đọc 'height_cm' từ req.body và gán vào 'height' cho Python
+      height: data.height_cm,
+
+      // Đọc 'weight_kg' từ req.body và gán vào 'weight' cho Python
+      weight: data.weight_kg,
+      // --------------------
+
+      ap_hi: data.ap_hi,
+      ap_lo: data.ap_lo,
+      cholesterol: data.cholesterol,
+      gluc: data.gluc,
+      smoke: data.smoke,
+      alco: data.alco,
+      active: data.active
+    };
+
+    // Kiểm tra xem frontend có gửi đủ không
+    if (!payloadForPython.height || !payloadForPython.weight) {
+      return res.status(400).json({
+        message: "Thiếu thông tin 'height_cm' hoặc 'weight_kg' từ frontend."
+      });
+    }
+
+    // 2. Gửi payload SẠCH sang Python API
+    const pyRes = await axios.post("https://heart-disease-api-9wbv.onrender.com/predict", payloadForPython); // (Sửa URL của bạn)
+    const probability = pyRes.data.probability;
+    // --------------------
+
+    // 3. Xác định mức độ nguy cơ
     let riskLevel;
     if (probability < 0.3) riskLevel = "Thấp";
     else if (probability < 0.6) riskLevel = "Trung bình";
     else riskLevel = "Cao";
 
-    // Lưu vào MongoDB
+    // 4. Lưu vào MongoDB
+    // SỬA LỖI: Dùng đúng tên biến 'data.weight_kg' và 'data.height_cm'
+    const bmi = data.weight_kg / ((data.height_cm / 100) ** 2);
+
     const diagnosis = new Diagnosis({
       ...data,
+      bmi: bmi.toFixed(2), // Bây giờ 'bmi' sẽ là một số (ví dụ: "22.49")
       riskPercentage: Math.round(probability * 100),
       riskLevel,
-      possibleDiseases: [], // Có thể bổ sung logic nếu muốn
     });
 
     const savedDiagnosis = await diagnosis.save();
     res.status(201).json(savedDiagnosis);
+
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    // Code catch (bắt lỗi) chi tiết từ lần trước
+    if (error.response) {
+      console.error("LỖI VALIDATION TỪ PYTHON API:", error.response.data);
+      res.status(422).json({
+        message: "Dữ liệu gửi lên API Python không hợp lệ.",
+        details: error.response.data
+      });
+    } else {
+      console.error("Lỗi khi gọi API Python:", error.message);
+      res.status(500).json({ message: error.message });
+    }
   }
 });
 

@@ -1,41 +1,42 @@
 const mongoose = require("mongoose");
 
 const diagnosisSchema = new mongoose.Schema({
-  // Thông tin bệnh nhân
+  // Thông tin bệnh nhân (Từ req.body)
   patientName: {
     type: String,
     required: true,
     trim: true,
   },
-  patientAge: {
+  patientAge: { // <-- Lưu tuổi gốc
     type: Number,
     required: true,
   },
-  patientGender: {
+  patientGender: { // <-- Lưu giới tính gốc
     type: String,
     enum: ["Nam", "Nữ"],
     required: true,
   },
 
-  // Các chỉ số sinh học
-  age: Number,
+  // Các chỉ số sinh học (Từ req.body)
   ap_hi: Number,
   ap_lo: Number,
-  height_cm: Number,
-  weight_kg: Number,
-  bmi: Number,
+  height: Number, // <-- Dùng 'height'
+  weight: Number, // <-- Dùng 'weight'
+  bmi: Number,    // <-- Lưu BMI đã tính
 
-  // Lối sống
+  // Lối sống (Từ req.body)
   smoke: Number,
   alco: Number,
   active: Number,
 
-  // Xét nghiệm
+  // Xét nghiệm (Từ req.body)
   cholesterol: Number,
   gluc: Number,
-  gender: Number,
 
-  // Kết quả chẩn đoán
+  // --- CÁC TRƯỜNG DƯ THỪA ĐÃ BỊ XÓA ---
+  // age, gender, height_cm, weight_kg
+
+  // Kết quả chẩn đoán (Tính toán)
   riskPercentage: {
     type: Number,
     required: true,
@@ -48,7 +49,7 @@ const diagnosisSchema = new mongoose.Schema({
   possibleDiseases: [
     {
       name: String,
-      probability: String,
+      probability: Number, // <-- Sửa thành Number
     },
   ],
 
