@@ -1,109 +1,29 @@
 const express = require("express");
 const router = express.Router();
 const Diagnosis = require("../models/Diagnosis");
-
-// Hàm tính toán nguy cơ và các bệnh có thể mắc
-const calculateRisk = (data) => {
-  const { age, ap_hi, ap_lo, bmi, smoke, alco, cholesterol, gluc, active } =
-    data;
-
-  // Tính nguy cơ cơ bản
-  let riskScore = 0;
-
-  // Tuổi
-  if (age > 60) riskScore += 30;
-  else if (age > 50) riskScore += 20;
-  else if (age > 40) riskScore += 10;
-
-  // Huyết áp
-  if (ap_hi > 140 || ap_lo > 90) riskScore += 25;
-  else if (ap_hi > 130 || ap_lo > 85) riskScore += 15;
-
-  // BMI
-  if (bmi > 30) riskScore += 20;
-  else if (bmi > 25) riskScore += 10;
-
-  // Lối sống
-  if (smoke === 1) riskScore += 15;
-  if (alco === 1) riskScore += 10;
-  if (active === 0) riskScore += 10;
-
-  // Xét nghiệm
-  if (cholesterol === 3) riskScore += 20;
-  else if (cholesterol === 2) riskScore += 10;
-
-  if (gluc === 3) riskScore += 20;
-  else if (gluc === 2) riskScore += 10;
-
-  const riskPercentage = Math.min(riskScore, 100);
-
-  // Xác định mức độ nguy cơ
-  let riskLevel;
-  if (riskPercentage < 30) riskLevel = "Thấp";
-  else if (riskPercentage < 60) riskLevel = "Trung bình";
-  else riskLevel = "Cao";
-
-  // Xác định các bệnh có thể mắc
-  const possibleDiseases = [];
-
-  if (ap_hi > 140 || ap_lo > 90) {
-    possibleDiseases.push({
-      name: "Tăng huyết áp",
-      probability: ap_hi > 160 ? "Cao" : "Trung bình",
-    });
-  }
-
-  if (cholesterol > 1 || bmi > 25) {
-    possibleDiseases.push({
-      name: "Bệnh tim mạch",
-      probability: cholesterol === 3 && bmi > 30 ? "Cao" : "Trung bình",
-    });
-  }
-
-  if (gluc > 1) {
-    possibleDiseases.push({
-      name: "Tiểu đường",
-      probability: gluc === 3 ? "Cao" : "Trung bình",
-    });
-  }
-
-  if (bmi > 30) {
-    possibleDiseases.push({
-      name: "Béo phì",
-      probability: bmi > 35 ? "Cao" : "Trung bình",
-    });
-  }
-
-  if (smoke === 1 && age > 40) {
-    possibleDiseases.push({
-      name: "Bệnh phổi mãn tính",
-      probability: "Trung bình",
-    });
-  }
-
-  if (possibleDiseases.length === 0) {
-    possibleDiseases.push({
-      name: "Không phát hiện dấu hiệu bất thường",
-      probability: "Thấp",
-    });
-  }
-
-  return { riskPercentage, riskLevel, possibleDiseases };
-};
+const axios = require("axios");
 
 // POST: Tạo chẩn đoán mới
 router.post("/", async (req, res) => {
   try {
     const data = req.body;
 
-    // Tính toán nguy cơ và bệnh
-    const { riskPercentage, riskLevel, possibleDiseases } = calculateRisk(data);
+    // Gửi dữ liệu sang Python API để lấy xác suất dự đoán
+    const pyRes = await axios.post("http://localhost:8050/predict", data);
+    const probability = pyRes.data.probability;
 
+    // Xác định mức độ nguy cơ dựa trên xác suất
+    let riskLevel;
+    if (probability < 0.3) riskLevel = "Thấp";
+    else if (probability < 0.6) riskLevel = "Trung bình";
+    else riskLevel = "Cao";
+
+    // Lưu vào MongoDB
     const diagnosis = new Diagnosis({
       ...data,
-      riskPercentage,
+      riskPercentage: Math.round(probability * 100),
       riskLevel,
-      possibleDiseases,
+      possibleDiseases: [], // Có thể bổ sung logic nếu muốn
     });
 
     const savedDiagnosis = await diagnosis.save();
