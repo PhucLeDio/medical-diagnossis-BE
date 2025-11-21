@@ -60,7 +60,6 @@ const connectDB = async () => {
       maxPoolSize: 1, // Giảm pool size cho serverless
       minPoolSize: 1,
       bufferCommands: false, // QUAN TRỌNG: Tắt buffering để tránh timeout
-      bufferMaxEntries: 0,
     });
     
     isConnected = true;
