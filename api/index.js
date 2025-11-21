@@ -85,9 +85,22 @@ app.use(async (req, res, next) => {
     next();
   } catch (error) {
     console.error("Lỗi kết nối DB trong middleware:", error);
+    
+    // Log chi tiết lỗi để debug
+    const errorDetails = {
+      message: error.message,
+      name: error.name,
+      hasMongoUri: !!process.env.MONGODB_URI,
+      mongoUriLength: process.env.MONGODB_URI ? process.env.MONGODB_URI.length : 0,
+    };
+    console.error("Chi tiết lỗi:", JSON.stringify(errorDetails, null, 2));
+    
     res.status(503).json({ 
       message: "Không thể kết nối đến database. Vui lòng thử lại sau.",
-      error: process.env.NODE_ENV === "development" ? error.message : undefined
+      error: error.message, // Hiển thị lỗi để debug
+      hint: !process.env.MONGODB_URI 
+        ? "MONGODB_URI environment variable is not set in Vercel"
+        : "Check MongoDB Atlas IP whitelist and connection string"
     });
   }
 });
